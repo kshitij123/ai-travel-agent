@@ -1,0 +1,81 @@
+{
+    "flights": [
+      {
+        "id": "FL001",
+        "from": "Delhi",
+        "to": "Mumbai",
+        "date": "2026-09-10",
+        "airline": "IndiGo",
+        "departure": "08:00",
+        "arrival": "10:15",
+        "price": 5500
+      },
+      {
+        "id": "FL002",
+        "from": "Delhi",
+        "to": "Mumbai",
+        "date": "2026-09-10",
+        "airline": "Air India",
+        "departure": "12:00",
+        "arrival": "14:20",
+        "price": 6200
+      },
+      {
+        "id": "FL003",
+        "from": "Delhi",
+        "to": "Bangalore",
+        "date": "2026-09-10",
+        "airline": "IndiGo",
+        "departure": "09:00",
+        "arrival": "11:45",
+        "price": 7000
+      }
+    ],
+  
+    "trains": [
+      {
+        "id": "TR001",
+        "from": "Delhi",
+        "to": "Mumbai",
+        "date": "2026-09-10",
+        "train": "Rajdhani Express",
+        "departure": "16:00",
+        "arrival": "08:00",
+        "price": 2200
+      },
+      {
+        "id": "TR002",
+        "from": "Delhi",
+        "to": "Bangalore",
+        "date": "2026-09-10",
+        "train": "Karnataka Express",
+        "departure": "21:00",
+        "arrival": "10:00",
+        "price": 1800
+      }
+    ],
+  
+    "hotels": [
+      {
+        "id": "HT001",
+        "city": "Mumbai",
+        "name": "Sea View Hotel",
+        "rating": 4.3,
+        "price_per_night": 6500
+      },
+      {
+        "id": "HT002",
+        "city": "Mumbai",
+        "name": "Mumbai Central Hotel",
+        "rating": 4.0,
+        "price_per_night": 4500
+      },
+      {
+        "id": "HT003",
+        "city": "Bangalore",
+        "name": "Tech Park Hotel",
+        "rating": 4.5,
+        "price_per_night": 5500
+      }
+    ]
+  }
