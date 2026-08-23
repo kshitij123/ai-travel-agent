@@ -4,48 +4,30 @@ from typing import Any
 from config import DATA_PATH
 
 
-def load_data() -> dict[str, Any]:
-    with DATA_PATH.open("r", encoding="utf-8") as file:
-        return json.load(file)
+def _load_data() -> dict[str, Any]:
+    with DATA_PATH.open("r", encoding="utf-8") as f:
+        return json.load(f)
 
 
-def _match_route(items: list[dict], source: str, destination: str) -> list[dict]:
-    source_key = source.lower()
-    destination_key = destination.lower()
-    return [
-        item
-        for item in items
-        if item["from"].lower() == source_key and item["to"].lower() == destination_key
-    ]
+def _match_route(items: list[dict], src: str, dst: str) -> list[dict]:
+    return [i for i in items if i["from"].lower() == src.lower() and i["to"].lower() == dst.lower()]
 
 
 def search_flights(source: str, destination: str) -> list[dict]:
-    data = load_data()
-    return _match_route(data["flights"], source, destination)
+    return _match_route(_load_data()["flights"], source, destination)
 
 
 def search_trains(source: str, destination: str) -> list[dict]:
-    data = load_data()
-    return _match_route(data["trains"], source, destination)
+    return _match_route(_load_data()["trains"], source, destination)
 
 
 def search_hotels(city: str) -> list[dict]:
-    data = load_data()
-    city_key = city.lower()
-    return [hotel for hotel in data["hotels"] if hotel["city"].lower() == city_key]
+    return [h for h in _load_data()["hotels"] if h["city"].lower() == city.lower()]
 
 
-def calculate_budget(
-    transport_cost: float,
-    hotel_cost_per_night: float,
-    nights: int,
-) -> dict[str, float]:
-    total_hotel_cost = hotel_cost_per_night * nights
-    return {
-        "transport_cost": transport_cost,
-        "hotel_cost": total_hotel_cost,
-        "total_cost": transport_cost + total_hotel_cost,
-    }
+def calculate_budget(transport_cost: float, hotel_cost_per_night: float, nights: int) -> dict[str, float]:
+    hotel_cost = hotel_cost_per_night * nights
+    return {"transport_cost": transport_cost, "hotel_cost": hotel_cost, "total_cost": transport_cost + hotel_cost}
 
 
 TOOL_REGISTRY = {
@@ -54,3 +36,22 @@ TOOL_REGISTRY = {
     "search_hotels": search_hotels,
     "calculate_budget": calculate_budget,
 }
+
+
+def _tool(name: str, desc: str, props: dict, required: list) -> dict:
+    return {"type": "function", "function": {"name": name, "description": desc, "parameters": {"type": "object", "properties": props, "required": required}}}
+
+
+_ROUTE = {"source": {"type": "string", "description": "Departure city"}, "destination": {"type": "string", "description": "Arrival city"}}
+
+TOOLS = [
+    _tool("search_flights", "Search flights between two cities", _ROUTE, ["source", "destination"]),
+    _tool("search_trains", "Search trains between two cities", _ROUTE, ["source", "destination"]),
+    _tool("search_hotels", "Search hotels in a city", {"city": {"type": "string", "description": "City where the hotel is located"}}, ["city"]),
+    _tool("calculate_budget", "Calculate total travel cost using transport cost, hotel cost per night and number of nights", {
+        "transport_cost": {"type": "number", "description": "Total transport cost"},
+        "hotel_cost_per_night": {"type": "number", "description": "Hotel cost per night"},
+        "nights": {"type": "integer", "description": "Number of hotel nights"},
+    }, ["transport_cost", "hotel_cost_per_night", "nights"]),
+    _tool("finish_trip_planning", "Indicate that enough information has been gathered and the trip planning is complete. Call this only when all required information for the final travel plan is available.", {}, []),
+]
