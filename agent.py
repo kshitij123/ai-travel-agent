@@ -76,22 +76,28 @@ def _clean_assistant_message(msg: Any) -> dict[str, Any]:
     'function_call', etc. that bloat every subsequent request.
     We only need: role, content, tool_calls.
     
+    IMPORTANT: 'content' must ALWAYS be present for assistant messages,
+    even if null. Groq/OpenAI API requires it when tool_calls are present.
+    
     This is called when appending assistant messages to self.messages[].
     """
     if isinstance(msg, dict):
-        clean: dict[str, Any] = {"role": msg.get("role", "assistant")}
-        if msg.get("content"):
-            clean["content"] = msg["content"]
+        # Always include content (can be None, but must exist)
+        clean: dict[str, Any] = {
+            "role": msg.get("role", "assistant"),
+            "content": msg.get("content"),  # None if missing
+        }
         if msg.get("tool_calls"):
             clean["tool_calls"] = msg["tool_calls"]
         return clean
     
-    # Groq message object
-    clean = {"role": getattr(msg, "role", "assistant")}
-    if getattr(msg, "content", None):
-        clean["content"] = msg.content
+    # Groq message object — always include content field
+    clean: dict[str, Any] = {
+        "role": getattr(msg, "role", "assistant"),
+        "content": getattr(msg, "content", None),  # None if missing
+    }
     if getattr(msg, "tool_calls", None):
-        # Also clean tool_calls to only keep id, function.name, function.arguments
+        # Clean tool_calls to only keep id, type, function.name, function.arguments
         clean["tool_calls"] = [
             {
                 "id": tc.id,
