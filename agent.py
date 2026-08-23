@@ -10,8 +10,9 @@ from config import (
     MODEL,
     TOOL_TEMPERATURE,
 )
-from prompts import SYSTEM_PROMPT
+from prompts import build_system_prompt
 from schemas import TRAVEL_PLAN_SCHEMA
+from state import TripState
 from tool_definitions import TOOLS
 from tools import TOOL_REGISTRY
 
@@ -28,9 +29,18 @@ def _normalize_tool_name(name: str) -> str:
 class TravelAgent:
     def __init__(self) -> None:
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        self.messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
+        self.trip_state = TripState()
+        self.messages: list[dict[str, Any]] = []
+
+    def _sync_system_message(self) -> None:
+        system_message = {
+            "role": "system",
+            "content": build_system_prompt(self.trip_state),
+        }
+        if self.messages and self.messages[0]["role"] == "system":
+            self.messages[0] = system_message
+        else:
+            self.messages.insert(0, system_message)
 
     def run(self) -> None:
         while True:
@@ -40,6 +50,7 @@ class TravelAgent:
                 break
 
             self.messages.append({"role": "user", "content": user_request})
+            self._sync_system_message()
             finished = self._run_agent_loop()
 
             if not finished:
@@ -82,6 +93,7 @@ class TravelAgent:
         finished = False
 
         while True:
+            self._sync_system_message()
             print("\nCalling LLM...")
             response = self._create_tool_completion()
             message = response.choices[0].message
@@ -102,6 +114,8 @@ class TravelAgent:
                 print("Arguments:", arguments)
 
                 if tool_name == "finish_trip_planning":
+                    self.trip_state.apply_tool_result(tool_name, arguments, None)
+                    self._sync_system_message()
                     finished = True
                     print("\nAgent decided that trip planning is complete.")
                     break
@@ -111,8 +125,12 @@ class TravelAgent:
                     raise ValueError(f"Unknown tool: {tool_name}")
 
                 result = tool(**arguments)
+                self.trip_state.apply_tool_result(tool_name, arguments, result)
+                self._sync_system_message()
                 print("\nTool result:")
                 print(result)
+                print("\n[State updated]")
+                print(self.trip_state.to_prompt_block())
 
                 self.messages.append(
                     {
@@ -130,6 +148,7 @@ class TravelAgent:
     def _generate_structured_plan(self) -> dict[str, Any] | None:
         print("\nGenerating structured response...")
 
+        self._sync_system_message()
         final_messages = self.messages + [
             {"role": "user", "content": FINAL_PLAN_PROMPT}
         ]
