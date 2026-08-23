@@ -10,6 +10,7 @@ from config import (
     MODEL,
     TOOL_TEMPERATURE,
 )
+import console_logger as log
 from prompts import build_system_prompt
 from schemas import TRAVEL_PLAN_SCHEMA
 from state import TripState
@@ -31,6 +32,7 @@ class TravelAgent:
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
         self.trip_state = TripState()
         self.messages: list[dict[str, Any]] = []
+        self._turn = 0
 
     def _sync_system_message(self) -> None:
         system_message = {
@@ -49,6 +51,7 @@ class TravelAgent:
                 print("Goodbye!")
                 break
 
+            log.log_user_input(user_request)
             self.messages.append({"role": "user", "content": user_request})
             self._sync_system_message()
             finished = self._run_agent_loop()
@@ -60,8 +63,11 @@ class TravelAgent:
             if travel_plan is None:
                 continue
 
-            print("\nFinal structured response:")
-            print(json.dumps(travel_plan, indent=2, ensure_ascii=False))
+            log.log_final_plan(travel_plan)
+
+    def _next_turn(self) -> int:
+        self._turn += 1
+        return self._turn
 
     def _create_tool_completion(self, temperature: float = TOOL_TEMPERATURE):
         last_error: BadRequestError | None = None
@@ -80,9 +86,7 @@ class TravelAgent:
 
                 last_error = error
                 temperature = max(temperature - 0.2, 0.2)
-                print(
-                    f"\nTool call failed, retrying with temperature {temperature}..."
-                )
+                log.log_retry(temperature)
 
         if last_error is not None:
             raise last_error
@@ -94,14 +98,16 @@ class TravelAgent:
 
         while True:
             self._sync_system_message()
-            print("\nCalling LLM...")
+            turn = self._next_turn()
+            log.log_llm_input(turn, self.messages, MODEL)
             response = self._create_tool_completion()
             message = response.choices[0].message
+            log.log_llm_output(turn, message)
 
             if not message.tool_calls:
                 self.messages.append(message)
-                print("\nAgent:")
-                print(message.content)
+                log.section("AGENT REPLY")
+                print(log.format_agent_text(message.content))
                 break
 
             self.messages.append(message)
@@ -110,14 +116,13 @@ class TravelAgent:
                 tool_name = _normalize_tool_name(tool_call.function.name)
                 arguments = json.loads(tool_call.function.arguments)
 
-                print("\nTool requested:", tool_name)
-                print("Arguments:", arguments)
-
                 if tool_name == "finish_trip_planning":
                     self.trip_state.apply_tool_result(tool_name, arguments, None)
                     self._sync_system_message()
                     finished = True
-                    print("\nAgent decided that trip planning is complete.")
+                    log.subsection("Planning complete")
+                    print(f"{log.INDENT}Agent decided trip planning is complete.")
+                    log.log_state_update(self.trip_state)
                     break
 
                 tool = TOOL_REGISTRY.get(tool_name)
@@ -127,10 +132,8 @@ class TravelAgent:
                 result = tool(**arguments)
                 self.trip_state.apply_tool_result(tool_name, arguments, result)
                 self._sync_system_message()
-                print("\nTool result:")
-                print(result)
-                print("\n[State updated]")
-                print(self.trip_state.to_prompt_block())
+                log.log_tool_execution(tool_name, arguments, result)
+                log.log_state_update(self.trip_state)
 
                 self.messages.append(
                     {
@@ -146,12 +149,15 @@ class TravelAgent:
         return finished
 
     def _generate_structured_plan(self) -> dict[str, Any] | None:
-        print("\nGenerating structured response...")
+        log.section("GENERATING STRUCTURED PLAN")
 
         self._sync_system_message()
         final_messages = self.messages + [
             {"role": "user", "content": FINAL_PLAN_PROMPT}
         ]
+        turn = self._next_turn()
+        log.log_llm_input(turn, final_messages, MODEL)
+
         final_response = self.client.chat.completions.create(
             model=MODEL,
             messages=final_messages,
@@ -164,10 +170,12 @@ class TravelAgent:
             },
         )
         final_message = final_response.choices[0].message
+        log.log_llm_output(turn, final_message)
 
         try:
             return json.loads(final_message.content)
         except json.JSONDecodeError:
-            print("\nCould not parse structured response.")
+            log.subsection("Parse error")
+            print(f"{log.INDENT}Could not parse structured response.")
             print(final_message.content)
             return None
