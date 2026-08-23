@@ -113,6 +113,13 @@ def log_retry(temp: float) -> None:
     print(f"\n{INDENT}{YELLOW}⚠{RESET} {bold('Tool call failed')} — retrying with temperature {temp}")
 
 
+def log_compression(before: int, after: int, summary: str) -> None:
+    subsection("Context compression")
+    print(f"{INDENT}{bold('Messages before:')} {before}")
+    print(f"{INDENT}{bold('Messages after:')} {after}")
+    print(f"{INDENT}{bold('Compressed summary:')}\n{INDENT}  {summary}")
+
+
 def _md_table_to_ascii(lines: list[str]) -> str:
     rows = [[c.strip() for c in l.strip().strip("|").split("|")] for l in lines if not re.fullmatch(r"\|[-| :]+\|", l.strip())]
     return _table(rows[0], rows[1:]) if len(rows) >= 2 else "\n".join(lines)

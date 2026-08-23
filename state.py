@@ -11,6 +11,9 @@ class TripState:
     Unlike messages[] (free-text chat history), this holds typed fields
     that are serialized into the system prompt before every LLM call.
 
+    Context compression shrinks old messages[] entries but does NOT touch
+    TripState — structured facts always survive in messages[0].
+
     Updated by agent._agent_loop() after each tool execution via apply_tool_result().
     """
 

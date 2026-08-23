@@ -5,6 +5,22 @@ DATA_PATH = Path(__file__).resolve().parent / "data" / "travel_data.json"
 TOOL_TEMPERATURE = 0.5
 MAX_TOOL_RETRIES = 3
 
+# ------------------------------------------------------------------
+# Context window management
+# ------------------------------------------------------------------
+# Compression reduces token count by summarizing OLD messages while
+# keeping RECENT messages verbatim. This saves cost and avoids
+# hitting the model's context window limit.
+#
+# Formula: compress when messages > MIN_MESSAGES_FOR_COMPRESSION
+# After compression: [system, summary, ...last KEEP_RECENT_MESSAGES...]
+# ------------------------------------------------------------------
+
+COMPRESS_EVERY_N_USER_TURNS = 5   # check compression trigger every N user inputs
+MIN_MESSAGES_FOR_COMPRESSION = 10 # don't compress unless we have at least this many
+KEEP_RECENT_MESSAGES = 6          # keep last N messages verbatim (should be enough for context)
+COMPRESS_SUMMARY_TEMPERATURE = 0.3
+
 FINAL_PLAN_PROMPT = """
 Now produce the final travel plan based only on
 the information gathered during this conversation.

@@ -25,3 +25,15 @@ def build_system_prompt(state: TripState) -> str:
     it sits on top of the free-text chat history in messages[].
     """
     return f"{SYSTEM_PROMPT.strip()}\n\nCurrent trip state:\n{state.to_json()}"
+
+
+# Used by agent._summarize_messages() during context compression.
+# This is a separate LLM call — not part of the main agent loop.
+COMPRESS_SUMMARY_PROMPT = """Summarize the following conversation history for a travel planning agent.
+
+Preserve all facts needed to continue planning:
+- user preferences, budget, cities, dates, nights
+- transport and hotel options discussed
+- recommendations made and open questions
+
+Be concise. Do not invent information."""
