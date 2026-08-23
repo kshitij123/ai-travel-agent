@@ -2,6 +2,7 @@
   "home_city": null,
   "preferred_transport": null,
   "budget_tier": null,
+  "typical_budget": null,
   "hotel_preferences": [],
   "dietary_notes": [],
   "notes": [],

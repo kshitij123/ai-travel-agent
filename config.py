@@ -3,6 +3,9 @@ from pathlib import Path
 MODEL = "openai/gpt-oss-120b"
 DATA_PATH = Path(__file__).resolve().parent / "data" / "travel_data.json"
 MEMORY_PATH = Path(__file__).resolve().parent / "data" / "user_memory.json"
+DOCUMENTS_DIR = Path(__file__).resolve().parent / "data" / "documents"
+RAG_TOP_K = 5
+RAG_MIN_SCORE = 0.05
 TOOL_TEMPERATURE = 0.5
 MAX_TOOL_RETRIES = 3
 

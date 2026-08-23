@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 from config import DATA_PATH
+from rag import search_travel_docs as _search_travel_docs
 
 
 def _load_data() -> dict[str, Any]:
@@ -30,6 +31,10 @@ def calculate_budget(transport_cost: float, hotel_cost_per_night: float, nights:
     return {"transport_cost": transport_cost, "hotel_cost": hotel_cost, "total_cost": transport_cost + hotel_cost}
 
 
+def search_travel_docs(query: str) -> dict[str, object]:
+    return _search_travel_docs(query)
+
+
 def remember_preference(category: str, value: str) -> dict[str, str]:
     """
     Placeholder — actual persistence is handled by agent.py via UserMemory.
@@ -43,6 +48,7 @@ TOOL_REGISTRY = {
     "search_trains": search_trains,
     "search_hotels": search_hotels,
     "calculate_budget": calculate_budget,
+    "search_travel_docs": search_travel_docs,
     "remember_preference": remember_preference,
 }
 
@@ -62,6 +68,12 @@ TOOLS = [
         "hotel_cost_per_night": {"type": "number", "description": "Hotel cost per night"},
         "nights": {"type": "integer", "description": "Number of hotel nights"},
     }, ["transport_cost", "hotel_cost_per_night", "nights"]),
+    _tool(
+        "search_travel_docs",
+        "Search travel knowledge documents for factual information about visas, rail passes, local travel rules, and general destination guidance. Use for questions NOT answerable by search_flights, search_trains, or search_hotels.",
+        {"query": {"type": "string", "description": "The travel question or topic to look up"}},
+        ["query"],
+    ),
     _tool("finish_trip_planning", "Indicate that enough information has been gathered and the trip planning is complete. Call this only when all required information for the final travel plan is available.", {}, []),
     _tool(
         "remember_preference",

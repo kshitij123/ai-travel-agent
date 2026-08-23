@@ -92,6 +92,14 @@ def _result_fmt(name: str, result: Any) -> str:
         return _hotel_table(result)
     if name == "calculate_budget" and isinstance(result, dict):
         return _budget_table(result)
+    if name == "search_travel_docs" and isinstance(result, dict):
+        rows = [
+            [r.get("source", ""), r.get("title", ""), f"{r.get('score', 0):.3f}"]
+            for r in result.get("results", [])
+        ]
+        if not rows:
+            return f"{INDENT}(no matching documents)"
+        return _table(["Source", "Section", "Score"], rows)
     return json.dumps(result, indent=2, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result)
 
 
