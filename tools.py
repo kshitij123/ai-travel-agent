@@ -30,11 +30,20 @@ def calculate_budget(transport_cost: float, hotel_cost_per_night: float, nights:
     return {"transport_cost": transport_cost, "hotel_cost": hotel_cost, "total_cost": transport_cost + hotel_cost}
 
 
+def remember_preference(category: str, value: str) -> dict[str, str]:
+    """
+    Placeholder — actual persistence is handled by agent.py via UserMemory.
+    The agent intercepts this tool and writes to long-term memory.
+    """
+    return {"status": "pending", "category": category, "value": value}
+
+
 TOOL_REGISTRY = {
     "search_flights": search_flights,
     "search_trains": search_trains,
     "search_hotels": search_hotels,
     "calculate_budget": calculate_budget,
+    "remember_preference": remember_preference,
 }
 
 
@@ -54,4 +63,17 @@ TOOLS = [
         "nights": {"type": "integer", "description": "Number of hotel nights"},
     }, ["transport_cost", "hotel_cost_per_night", "nights"]),
     _tool("finish_trip_planning", "Indicate that enough information has been gathered and the trip planning is complete. Call this only when all required information for the final travel plan is available.", {}, []),
+    _tool(
+        "remember_preference",
+        "Save a durable user preference for future trips. Use when the user shares facts like home city, transport style, budget tier, hotel needs, or dietary restrictions.",
+        {
+            "category": {
+                "type": "string",
+                "enum": ["home_city", "preferred_transport", "budget_tier", "budget", "hotel_preference", "dietary", "note"],
+                "description": "Type of preference to remember",
+            },
+            "value": {"type": "string", "description": "The preference value to store"},
+        },
+        ["category", "value"],
+    ),
 ]

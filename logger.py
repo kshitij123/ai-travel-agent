@@ -2,6 +2,7 @@ import json
 import re
 from typing import Any
 
+from memory import TripRecord, UserMemory
 from state import TripState
 
 INDENT = "  "
@@ -148,3 +149,34 @@ def log_final_plan(plan: dict[str, Any]) -> None:
     rows = [["Destination", plan.get("destination", "—")], ["Nights", plan.get("nights", "—")], ["Transport", f"{t.get('type', '—')} — {t.get('name', '—')} ({_price(t.get('price'))})"], ["Hotel", f"{h.get('name', '—')} ({_price(h.get('price_per_night'))}/night)"], ["Total cost", _price(plan.get("total_cost"))], ["Within budget", plan.get("within_budget", "—")]]
     print(_table(["Field", "Value"], rows))
     print(f"\n{INDENT}{bold('Recommendation:')}\n{INDENT}  {plan.get('recommendation', '—')}")
+
+
+def log_memory_loaded(memory: UserMemory) -> None:
+    subsection("Long-term memory loaded")
+    print(f"{INDENT}{memory.to_json()}")
+
+
+def log_memory_update(category: str, value: str) -> None:
+    subsection("Long-term memory updated")
+    print(f"{INDENT}{bold('Saved:')} {category} = {value}")
+
+
+def log_memory_sync(fields: list[str], memory: UserMemory) -> None:
+    subsection("Long-term memory synced from trip state")
+    rows = [[field, str(getattr(memory, field))] for field in fields]
+    print(_table(["Field", "Value"], rows))
+
+
+def log_trip_saved(record: TripRecord) -> None:
+    subsection("Trip saved to long-term memory")
+    print(_table(
+        ["Field", "Value"],
+        [
+            ["Destination", record.destination],
+            ["Nights", record.nights],
+            ["Transport", f"{record.transport_type} — {record.transport_name}"],
+            ["Hotel", record.hotel_name],
+            ["Total cost", _price(record.total_cost)],
+            ["Completed at", record.completed_at],
+        ],
+    ))

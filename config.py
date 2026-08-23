@@ -2,6 +2,7 @@ from pathlib import Path
 
 MODEL = "openai/gpt-oss-120b"
 DATA_PATH = Path(__file__).resolve().parent / "data" / "travel_data.json"
+MEMORY_PATH = Path(__file__).resolve().parent / "data" / "user_memory.json"
 TOOL_TEMPERATURE = 0.5
 MAX_TOOL_RETRIES = 3
 

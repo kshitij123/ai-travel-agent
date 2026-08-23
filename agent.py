@@ -22,6 +22,11 @@ Key idea: Groq is stateless. Every call sends the full messages[] history.
 TripState is re-injected into messages[0] before each call so the LLM
 always sees structured facts at the top, not buried in chat text.
 
+Memory layers:
+  - Short-term: messages[] (chat) + TripState (current trip facts)
+  - Short-term compression: summarize old messages[] every N turns
+  - Long-term: UserMemory persisted to data/user_memory.json across sessions
+
 Context compression (every 5 user turns, if enough messages):
     messages[] grows with every user message, assistant reply, and tool result.
     Long histories cost more tokens and can exceed the context window.
@@ -44,12 +49,14 @@ from config import (
     COMPRESS_SUMMARY_TEMPERATURE,
     FINAL_PLAN_PROMPT,
     KEEP_RECENT_MESSAGES,
+    MEMORY_PATH,
     MIN_MESSAGES_FOR_COMPRESSION,
     MAX_TOOL_RETRIES,
     MODEL,
     TOOL_TEMPERATURE,
     TRAVEL_PLAN_SCHEMA,
 )
+from memory import UserMemory
 from prompts import COMPRESS_SUMMARY_PROMPT, build_system_prompt
 from state import TripState
 from tools import TOOL_REGISTRY, TOOLS
@@ -115,10 +122,13 @@ def _clean_assistant_message(msg: Any) -> dict[str, Any]:
 class TravelAgent:
     def __init__(self) -> None:
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        self.state = TripState()          # structured facts, injected into system prompt
+        self.state = TripState()          # short-term structured facts for this trip
+        self.memory = UserMemory.load(MEMORY_PATH)  # long-term memory across sessions
         self.messages: list[dict[str, Any]] = []  # full conversation history sent to LLM
         self.turn = 0                     # LLM call counter (for logging)
         self.user_turn = 0                # user input counter (triggers compression check)
+        if not self.memory.is_empty():
+            log.log_memory_loaded(self.memory)
 
     # ------------------------------------------------------------------
     # Memory helpers — run before every LLM call
@@ -135,7 +145,7 @@ class TravelAgent:
         This is called before every LLM request so the model always sees
         up-to-date structured facts without re-reading the entire chat.
         """
-        msg = {"role": "system", "content": build_system_prompt(self.state)}
+        msg = {"role": "system", "content": build_system_prompt(self.state, self.memory)}
         if self.messages and self.messages[0]["role"] == "system":
             self.messages[0] = msg   # update existing system message
         else:
@@ -268,28 +278,44 @@ class TravelAgent:
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        while True:
-            user_input = input("\nYou: ")
-            if user_input.lower() == "exit":
-                print("Goodbye!")
-                break
+        try:
+            while True:
+                user_input = input("\nYou: ")
+                if user_input.lower() == "exit":
+                    print("Goodbye!")
+                    break
 
-            self.user_turn += 1
+                self.user_turn += 1
 
-            # Step 1: store user message in conversation history
-            log.log_user(user_input)
-            self.messages.append({"role": "user", "content": user_input})
-            self._sync_system()
+                # Step 1: store user message in conversation history
+                log.log_user(user_input)
+                self.messages.append({"role": "user", "content": user_input})
+                self._sync_system()
 
-            # Step 2: run agent loop (may call LLM 1..N times for tool use)
-            # Returns True only when LLM called finish_trip_planning
-            if self._agent_loop():
-                # Step 3: one final LLM call to produce structured JSON plan
-                if plan := self._final_plan():
-                    log.log_final_plan(plan)
+                # Step 2: run agent loop (may call LLM 1..N times for tool use)
+                # Returns True only when LLM called finish_trip_planning
+                if self._agent_loop():
+                    # Step 3: one final LLM call to produce structured JSON plan
+                    if plan := self._final_plan():
+                        log.log_final_plan(plan)
+                        record = self.memory.record_completed_trip(plan)
+                        self._save_memory()
+                        log.log_trip_saved(record)
 
-            # Step 4: periodically compress old chat history to save tokens
-            self._maybe_compress_history()
+                # Step 4: periodically compress old chat history to save tokens
+                self._maybe_compress_history()
+        finally:
+            self._save_memory()
+
+    def _save_memory(self) -> None:
+        self.memory.save(MEMORY_PATH)
+
+    def _persist_preferences_from_state(self) -> None:
+        """Sync basic preferences from TripState and write to disk immediately."""
+        updated = self.memory.sync_basic_preferences(self.state)
+        if updated:
+            self._save_memory()
+            log.log_memory_sync(updated, self.memory)
 
     # ------------------------------------------------------------------
     # LLM call with retry — used during the agent loop
@@ -364,10 +390,23 @@ class TravelAgent:
                 # Update state, return True to trigger _final_plan().
                 if name == "finish_trip_planning":
                     self.state.apply_tool_result(name, args, None)
+                    self._persist_preferences_from_state()
                     log.subsection("Planning complete")
                     print(f"{log.INDENT}Agent decided trip planning is complete.")
                     log.log_state(self.state)
                     return True
+
+                if name == "remember_preference":
+                    result = self.memory.remember_preference(args["category"], args["value"])
+                    self._sync_system()
+                    self._save_memory()
+                    log.log_memory_update(args["category"], args["value"])
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": json.dumps(result),
+                    })
+                    continue
 
                 # --- Branch B2: normal tool execution ---
                 # 1. Run Python function
@@ -376,6 +415,7 @@ class TravelAgent:
                 # 4. Append tool result to messages[] so LLM can read it next turn
                 result = TOOL_REGISTRY[name](**args)
                 self.state.apply_tool_result(name, args, result)
+                self._persist_preferences_from_state()
                 self._sync_system()
                 log.log_tool(name, args, result)
                 log.log_state(self.state)

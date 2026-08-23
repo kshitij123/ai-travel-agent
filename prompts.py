@@ -1,3 +1,4 @@
+from memory import UserMemory
 from state import TripState
 
 # Base instructions — always the same. Sent as the first part of messages[0].
@@ -13,18 +14,23 @@ Rules:
 6. Clearly explain why you recommend an option.
 7. If required information is missing, ask the user for it.
 8. Use the current trip state below as the source of truth for gathered facts.
+9. Use remembered user profile facts when relevant (home city, transport style, budget tier).
+10. Call remember_preference immediately when the user shares durable preferences (home city, budget, transport style, hotel needs, dietary restrictions). Do not wait until trip planning finishes.
 """
 
 
-def build_system_prompt(state: TripState) -> str:
+def build_system_prompt(state: TripState, memory: UserMemory) -> str:
     """
     Build the system message content sent to the LLM on every call.
 
     Called by agent._sync_system() before each LLM request.
-    The TripState JSON block is the structured memory layer —
-    it sits on top of the free-text chat history in messages[].
+    TripState is short-term structured memory for the active trip.
+    UserMemory is long-term memory loaded from previous sessions.
     """
-    return f"{SYSTEM_PROMPT.strip()}\n\nCurrent trip state:\n{state.to_json()}"
+    parts = [SYSTEM_PROMPT.strip(), f"\nCurrent trip state:\n{state.to_json()}"]
+    if not memory.is_empty():
+        parts.append(f"\nRemembered user profile (from past sessions):\n{memory.to_json()}")
+    return "\n".join(parts)
 
 
 # Used by agent._summarize_messages() during context compression.

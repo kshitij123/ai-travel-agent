@@ -52,5 +52,7 @@ class TripState:
         elif tool_name == "calculate_budget":
             self.nights = args.get("nights")
             self.budget_breakdown = result if isinstance(result, dict) else None
+            if isinstance(result, dict):
+                self.budget = result.get("total_cost")
         elif tool_name == "finish_trip_planning":
             self.status = "complete"
